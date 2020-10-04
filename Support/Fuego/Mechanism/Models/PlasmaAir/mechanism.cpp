@@ -22,6 +22,9 @@ namespace thermo
     double activation_units_DEF[22], prefactor_units_DEF[22], phase_units_DEF[22];
     int is_PD_DEF[22], troe_len_DEF[22], sri_len_DEF[22], nTB_DEF[22], *TBid_DEF[22];
     double *TB_DEF[22];
+    double *TeData;
+    double *ENData;
+    int Te_len;
     std::vector<int> rxn_map;
 };
 
@@ -81,7 +84,7 @@ void CKINIT()
     // (0):  E + N2 => E + E + N2+
     fwd_A[0]     = 1;
     fwd_beta[0]  = 0;
-    fwd_Ea[0]    = 1;
+    fwd_Ea[0]    = 0;
     prefactor_units[0]  = 1.0000000000000002e-06;
     activation_units[0] = 0.50321666580471969;
     phase_units[0]      = pow(10,-12.000000);
@@ -94,7 +97,7 @@ void CKINIT()
     // (1):  E + O2 => E + E + O2+
     fwd_A[1]     = 1;
     fwd_beta[1]  = 0;
-    fwd_Ea[1]    = 1;
+    fwd_Ea[1]    = 0;
     prefactor_units[1]  = 1.0000000000000002e-06;
     activation_units[1] = 0.50321666580471969;
     phase_units[1]      = pow(10,-12.000000);
@@ -362,6 +365,47 @@ void CKINIT()
     nTB[21] = 0;
 
     SetAllDefaults();
+
+    /*Load in Te(E/N) data */
+
+    // Assume constant name for datafile for now...
+    std::string Te_extrap = "Te.dat";
+    std::ifstream Tefile(Te_extrap.c_str());
+    if(!Tefile.good()) {
+      printf("INPUT ERROR : unable to open Te_extrap file!\n");
+      exit(1);
+    }
+
+    // Get the number of lines in the file
+    Te_len = std::count(std::istreambuf_iterator<char>(Tefile), std::istreambuf_iterator<char>(), '\n') - 1;  // Assumes 1 line for header file
+
+    // Quick checks on file length
+    if(Te_len <= 3){
+      printf("INPUT ERROR : Te_extrap file must have at least 3 entries!\n");
+      exit(1);
+    }
+
+    // Create data arrays
+    TeData = new double[Te_len]{0.0};
+    ENData = new double[Te_len]{0.0};
+
+    // Load data into arrays, line by line
+    std::ifstream Loadfile(Te_extrap.c_str());
+    std::string line;
+    std::getline(Loadfile, line);   // Pull off header file
+    for(int i=0; i<Te_len; i++){
+      std::getline(Loadfile, line);   // Get data row
+      std::istringstream iss(line);
+      iss >> ENData[i] >> TeData[i];
+    }
+    // Check for successive duplicate values
+    for(int i=1; i<Te_len; i++){
+      if(ENData[i] == ENData[i-1]){
+        printf("Duplicate EN entries found in Te file. Exiting!\n");
+        exit(1);
+      }
+    }
+
 }
 
 void GET_REACTION_MAP(int *rmap)
@@ -1083,11 +1127,7 @@ AMREX_GPU_HOST_DEVICE void CKYTCR(double *  rho, double *  T, double *  y,  doub
     for (int i = 0; i < 10; i++)
     {
         c[i] = (*rho)  * y[i] * imw[i];
-        // ndeak add (remove later)
-        // printf("y[%i] is %.6e\n", i, y[i]);
     }
-    // ndeak add (remove later)
-    //exit(1);
 }
 
 
@@ -1922,8 +1962,11 @@ AMREX_GPU_HOST_DEVICE void CKWC(double *  T, double *  C,  double *  wdot)
         C[id] *= 1.0e6;
     }
 
+    // ndeak - Temporary double for testing
+    double EoN = 100.0;
+
     /*convert to chemkin units */
-    productionRate(wdot, C, *T);
+    productionRate(wdot, C, *T, EoN);
 
     /*convert to chemkin units */
     for (id = 0; id < 10; ++id) {
@@ -1968,8 +2011,12 @@ void CKWYP(double *  P, double *  T, double *  y,  double *  wdot)
     c[8] = PWORT * y[8]*imw[8]; 
     c[9] = PWORT * y[9]*imw[9]; 
 
+
+    // ndeak - Temporary double for testing
+    double EoN = 100.0;
+
     /*convert to chemkin units */
-    productionRate(wdot, c, *T);
+    productionRate(wdot, c, *T, EoN);
 
     /*convert to chemkin units */
     for (id = 0; id < 10; ++id) {
@@ -1991,8 +2038,11 @@ void CKWXP(double *  P, double *  T, double *  x,  double *  wdot)
         c[id] = x[id]*PORT;
     }
 
+    // ndeak - Temporary double for testing
+    double EoN = 100.0;
+
     /*convert to chemkin units */
-    productionRate(wdot, c, *T);
+    productionRate(wdot, c, *T, EoN);
 
     /*convert to chemkin units */
     for (id = 0; id < 10; ++id) {
@@ -2019,8 +2069,11 @@ AMREX_GPU_HOST_DEVICE void CKWYR(double *  rho, double *  T, double *  y,  doubl
     c[8] = 1e6 * (*rho) * y[8]*imw[8]; 
     c[9] = 1e6 * (*rho) * y[9]*imw[9]; 
 
+    // Temporary double for testing
+    double EoN = 100.0;
+
     /*call productionRate */
-    productionRate(wdot, c, *T);
+    productionRate(wdot, c, *T, EoN);
 
     /*convert to chemkin units */
     for (id = 0; id < 10; ++id) {
@@ -2082,8 +2135,11 @@ void CKWXR(double *  rho, double *  T, double *  x,  double *  wdot)
         c[id] = x[id]*ROW;
     }
 
+    // ndeak - Temporary double for testing
+    double EoN = 100.0;
+
     /*convert to chemkin units */
-    productionRate(wdot, c, *T);
+    productionRate(wdot, c, *T, EoN);
 
     /*convert to chemkin units */
     for (id = 0; id < 10; ++id) {
@@ -3061,7 +3117,7 @@ void CKCHRG(int * kcharge)
 #ifdef AMREX_USE_CUDA
 /*GPU version of productionRate: no more use of thermo namespace vectors */
 /*compute the production rate for each species */
-AMREX_GPU_HOST_DEVICE inline void  productionRate(double * wdot, double * sc, double T)
+AMREX_GPU_HOST_DEVICE inline void  productionRate(double * wdot, double * sc, double T, double EoN)
 {
     double tc[] = { log(T), T, T*T, T*T*T, T*T*T*T }; /*temperature cache */
     double invT = 1.0 / tc[1];
@@ -3497,10 +3553,11 @@ static double Kc_save[22];
 
 
 /*compute the production rate for each species pointwise on CPU */
-void productionRate(double *  wdot, double *  sc, double T)
+void productionRate(double *  wdot, double *  sc, double T, double EoN)
 {
     double tc[] = { log(T), T, T*T, T*T*T, T*T*T*T }; /*temperature cache */
     double invT = 1.0 / tc[1];
+    double Te;
 
     if (T != T_save)
     {
@@ -3508,6 +3565,12 @@ void productionRate(double *  wdot, double *  sc, double T)
         comp_k_f(tc,invT,k_f_save);
         comp_Kc(tc,invT,Kc_save);
     }
+
+    /*calculate Te based on E/N */
+    ExtrapTe(EoN, &Te);
+
+    /*Calculate the electric field-dependent rate constants */
+    plasmaFRates(tc, invT, k_f_save, EoN, Te);
 
     double qdot, q_f[22], q_r[22];
     comp_qfqr(q_f, q_r, sc, tc, invT);
@@ -3682,6 +3745,67 @@ void comp_k_f(double *  tc, double invT, double *  k_f)
                     * exp(fwd_beta[i] * tc[0] - activation_units[i] * fwd_Ea[i] * invT);
     };
     return;
+}
+
+void plasmaFRates(double *  tc, double invT, double *  k_f, double EoN, double Te)
+{
+  // Calculates the forward rate constants (SI units - mol, m, s) for plasma reactions
+
+  // E + N2 => E + E + N2+
+  k_f[0] = 1.0e-6 * pow(10, -8.3 - 365.0/EoN) * 6.02214085774e23;
+
+  // E + O2 => E + E + O2+   
+  k_f[1] = 1.0e-6 * pow(10, -8.8 - 281.0/EoN) * 6.02214085774e23;
+  
+  // E + O4+ => O2 + O2
+  k_f[11] = 1.0e-6 * 1.4e-6 * pow((300.0 / Te), 0.5) * 6.02214085774e23;
+
+  // E + O2+ => O + O
+  k_f[12] = 1.0e-6 * 2.0e-7 * (300.0 / Te) * 6.02214085774e23;
+
+  // E + O2 + O2 => O2- + O2
+  k_f[13] = 1.0e-12 * 1.4e-29 * (300.0/Te) * exp(-600.0/tc[1]) * exp(700.0*(Te-tc[1]) / (Te*tc[1])) * 6.02214085774e23 * 6.02214085774e23;
+
+  // E + O2 + N2 => O2- + N2
+  k_f[14] = 1.0e-12 * 1.07e-31 * pow((300.0/Te),2) * exp(-70.0/tc[1]) * exp(1500.0*(Te-tc[1]) / (Te*tc[1])) * 6.02214085774e23 * 6.02214085774e23;
+
+  // O2- + M => E + O2 + M
+  double expsum = -2.026484225560049e-05*tc[2] + 3.062335967570566e-02*tc[1] -2.470075295687302e+01;
+  k_f[20] = pow(10, expsum);
+  // Fitting for 300 K only
+  expsum = -1.319420604234347e-09*EoN*EoN*EoN*EoN + 1.305060482084180e-06*EoN*EoN*EoN -4.818122893738965e-04*EoN*EoN + 8.343548556066513e-02*EoN -1.652720822318659e+01;
+  k_f[20] += pow(10, expsum);
+  k_f[20] *= 1.0e-6 * 6.02214085774e23;
+  k_f[21] = k_f[20];
+
+  return;
+}
+
+void ExtrapTe(double EoN, double * Te)
+{
+  
+  double EN1, Te1, EN2, Te2;
+  
+  if(EoN <= ENData[0]){
+    *Te = TeData[0] * 7736.34802879;     // Convert eV to K
+  }
+  else if(EoN >= ENData[Te_len-1]){
+    *Te = TeData[Te_len-1] * 7736.34802879;
+  }
+  else{
+    EN1 = ENData[0]; EN2 = ENData[1];
+    Te1 = TeData[0]; Te2 = TeData[1];
+    int cnt = 1;
+    while(EN2 < EoN){
+      cnt++;
+      EN1 = EN2; Te1 = Te2;
+      EN2 = ENData[cnt]; Te2 = TeData[cnt];
+    }
+    *Te = (Te1 + (Te2 - Te1) * ((EoN - EN1) / (EN2 - EN1))) * 7736.34802879;  // Linear extrapolation to get Te(E/N)
+  }
+
+
+  return;
 }
 
 void comp_Kc(double *  tc, double invT, double *  Kc)

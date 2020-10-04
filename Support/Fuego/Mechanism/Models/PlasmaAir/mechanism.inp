@@ -65,9 +65,10 @@ END
 
 REACTIONS 
 
+
 ! Ionization reations
-E + N2 => E + E + N2+                 1.0               0.0   1.0
-E + O2 => E + E + O2+                 1.0               0.0   1.0
+E + N2 => E + E + N2+                 1.0               0.0   0.0
+E + O2 => E + E + O2+                 1.0               0.0   0.0
 
 ! Production of O2+ 
 N2+ + N2 + N2 => N4+ + N2             1.8132242E+019    0.0     0.0
@@ -100,5 +101,6 @@ O2- + O2+ + N2 => O2 + O2 + N2        7.2528968E+022    0.0     0.0
 ! Electron detachment
 O2- + O2 => E + O2 + O2               1.0               0.0     0.0
 O2- + N2 => E + O2 + N2               1.0               0.0     0.0
+
 
 END

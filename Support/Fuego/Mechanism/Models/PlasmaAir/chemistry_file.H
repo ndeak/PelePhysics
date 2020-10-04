@@ -21,7 +21,7 @@ AMREX_GPU_HOST_DEVICE void speciesEntropy(double *  species, double *  tc);
 AMREX_GPU_HOST_DEVICE void cp_R(double *  species, double *  tc);
 AMREX_GPU_HOST_DEVICE void cv_R(double *  species, double *  tc);
 void equilibriumConstants(double *  kc, double *  g_RT, double T);
-AMREX_GPU_HOST_DEVICE void productionRate(double *  wdot, double *  sc, double T);
+AMREX_GPU_HOST_DEVICE void productionRate(double *  wdot, double *  sc, double T, double EoN);
 AMREX_GPU_HOST_DEVICE void comp_qfqr(double *  q_f, double *  q_r, double *  sc, double *  tc, double invT);
 #ifndef AMREX_USE_CUDA
 void comp_k_f(double *  tc, double invT, double *  k_f);
@@ -169,6 +169,10 @@ void egtransetKTDIF(int* KTDIF);
 /*gauss-jordan solver external routine */
 AMREX_GPU_HOST_DEVICE void sgjsolve(double* A, double* x, double* b);
 AMREX_GPU_HOST_DEVICE void sgjsolve_simplified(double* A, double* x, double* b);
+// (ndeak) Adding extra functions to handle plasma reacions
+void plasmaFRates(double *  tc, double invT, double *  k_f, double EoN, double Te);
+void ExtrapTe(double EoN, double * Te);
+void loadTeData();
 }
 
 #ifndef AMREX_USE_CUDA
