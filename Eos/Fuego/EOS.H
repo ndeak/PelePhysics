@@ -13,6 +13,10 @@ namespace EOS {
 constexpr amrex::Real RU   = 8.31446261815324e7;
 constexpr amrex::Real RUC  = 1.98721558317399615845;
 constexpr amrex::Real PATM = 1.01325e+06;
+#ifdef PLM_USE_EFIELD
+constexpr amrex::Real NA         = 6.022e+23;
+constexpr amrex::Real UNITCHARGE = 1.60217662e-19;
+#endif
 
 void init();
 
@@ -320,6 +324,22 @@ RG2dpde(amrex::Real R, amrex::Real G, amrex::Real& dpde)
 {
   dpde = (G - 1.0) * R;
 }
+
+#ifdef PLM_USE_EFIELD
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+void
+charge_mass(amrex::Real zk[])
+{
+   amrex::Real imw[NUM_SPECIES];
+   get_imw(imw);
+   int charge[NUM_SPECIES];
+   CKCHRG(charge);
+   for (int i = 0; i < NUM_SPECIES; ++i) {
+      zk[i] = NA * UNITCHARGE * charge[i] * imw[i] * 1000.0;
+   }
+}
+#endif
 
 } // namespace EOS
 
