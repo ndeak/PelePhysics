@@ -27,6 +27,9 @@ typedef struct {
       int ireactor_type;
       int iimplicit_solve;
       int iuse_erkode;
+#ifdef PELEC_USE_PLASMA
+      realtype EoN;
+#endif
 } *UserData;
 
 
@@ -45,7 +48,11 @@ extern "C"
 
     int react(realtype *rY_in, realtype *rY_src_in,
               realtype *rX_in, realtype *rX_src_in,
-              realtype &dt_react, realtype &time);
+              realtype &dt_react, realtype &time
+#ifdef PELEC_USE_PLASMA
+              , realtype eon_in
+#endif
+);
 
     void reactor_close();
 }

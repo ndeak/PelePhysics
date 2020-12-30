@@ -289,7 +289,11 @@ int reactor_init(int reactor_type, int Ncells) {
 /* Main call routine */
 int react(realtype *rY_in, realtype *rY_src_in, 
           realtype *rX_in, realtype *rX_src_in,
-          realtype &dt_react, realtype &time){
+          realtype &dt_react, realtype &time
+#ifdef PELEC_USE_PLASMA
+          , realtype eon_in
+#endif
+){
 
 	int omp_thread = 0;
 #ifdef _OPENMP
@@ -318,7 +322,9 @@ int react(realtype *rY_in, realtype *rY_src_in,
 	/* rhoE/rhoH */
 	std::memcpy(rhoX_init, rX_in, sizeof(realtype) * data->ncells);
 	std::memcpy(rhoXsrc_ext, rX_src_in, sizeof(realtype) * data->ncells);
-
+#ifdef PELEC_USE_PLASMA
+  data->EoN = eon_in;
+#endif
         if (data->iimplicit_solve == 1) {
             //set explicit rhs to null
 	    ARKStepReInit(arkode_mem, NULL, cF_RHS, time_init, y);
@@ -444,7 +450,12 @@ void fKernelSpec(realtype *dt, realtype *yvec_d, realtype *ydot_d,
           EOS::TY2Cp(temp, massfrac, cX);
           EOS::T2Hi(temp, Xi);
       }
+
+#ifdef PELEC_USE_PLASMA
+      EOS::RTY2WDOT(rho, temp, massfrac, cdot, data_wk->EoN);
+#else
       EOS::RTY2WDOT(rho, temp, massfrac, cdot);
+#endif
 
       /* Fill ydot vect */
       ydot_d[offset + NUM_SPECIES] = rhoXsrc_ext[tid];

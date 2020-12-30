@@ -1953,7 +1953,7 @@ void CKABMS(double *  P, double *  T, double *  y,  double *  abms)
 
 
 /*compute the production rate for each species */
-AMREX_GPU_HOST_DEVICE void CKWC(double *  T, double *  C,  double *  wdot)
+AMREX_GPU_HOST_DEVICE void CKWC(double *  T, double *  C,  double *  wdot, double EoN)
 {
     int id; /*loop counter */
 
@@ -1961,9 +1961,6 @@ AMREX_GPU_HOST_DEVICE void CKWC(double *  T, double *  C,  double *  wdot)
     for (id = 0; id < 10; ++id) {
         C[id] *= 1.0e6;
     }
-
-    // ndeak - Temporary double for testing
-    double EoN = 100.0;
 
     /*convert to chemkin units */
     productionRate(wdot, C, *T, EoN);
@@ -3735,6 +3732,17 @@ void productionRate(double *  wdot, double *  sc, double T, double EoN)
     wdot[2] += qdot;
     wdot[9] -= qdot;
 
+    // TODO: hardcoded for now, add to input file late
+    // Creation of seed electron/ions
+    wdot[0] += 1.0e7;
+    wdot[1] -= 1.0e7 * sc[1] / (sc[1] + sc[2]);
+    wdot[2] -= 1.0e7 * sc[2] / (sc[1] + sc[2]);
+    wdot[4] += 1.0e7 * sc[1] / (sc[1] + sc[2]);
+    wdot[5] += 1.0e7 * sc[2] / (sc[1] + sc[2]);
+
+    wdot[1] = 0.0;
+    wdot[2] = 0.0;
+
     return;
 }
 
@@ -3751,12 +3759,18 @@ void plasmaFRates(double *  tc, double invT, double *  k_f, double EoN, double T
 {
   // Calculates the forward rate constants (SI units - mol, m, s) for plasma reactions
 
-  // E + N2 => E + E + N2+
-  k_f[0] = 1.0e-6 * pow(10, -8.3 - 365.0/EoN) * 6.02214085774e23;
+  if(EoN > 1.0e-10){
+    // E + N2 => E + E + N2+
+    k_f[0] = 1.0e-6 * pow(10, -8.3 - 365.0/EoN) * 6.02214085774e23;
 
-  // E + O2 => E + E + O2+   
-  k_f[1] = 1.0e-6 * pow(10, -8.8 - 281.0/EoN) * 6.02214085774e23;
-  
+    // E + O2 => E + E + O2+   
+    k_f[1] = 1.0e-6 * pow(10, -8.8 - 281.0/EoN) * 6.02214085774e23;
+  }
+  else{
+    k_f[0] = 0.0;
+    k_f[1] = 0.0;
+  }
+
   // E + O4+ => O2 + O2
   k_f[11] = 1.0e-6 * 1.4e-6 * pow((300.0 / Te), 0.5) * 6.02214085774e23;
 

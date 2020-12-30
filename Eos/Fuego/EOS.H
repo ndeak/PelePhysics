@@ -13,7 +13,7 @@ namespace EOS {
 constexpr amrex::Real RU   = 8.31446261815324e7;
 constexpr amrex::Real RUC  = 1.98721558317399615845;
 constexpr amrex::Real PATM = 1.01325e+06;
-#ifdef PLM_USE_EFIELD
+#ifdef PELEC_USE_PLASMA
 constexpr amrex::Real NA         = 6.022e+23;
 constexpr amrex::Real UNITCHARGE = 1.60217662e-19;
 #endif
@@ -164,12 +164,20 @@ RYP2T(amrex::Real R, amrex::Real Y[], amrex::Real P, amrex::Real& T)
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 void
-RTY2WDOT(amrex::Real R, amrex::Real T, amrex::Real Y[], amrex::Real WDOT[])
+RTY2WDOT(amrex::Real R, amrex::Real T, amrex::Real Y[], amrex::Real WDOT[]
+#ifdef PELEC_USE_PLASMA
+, amrex::Real EoN
+#endif
+)
 {
   //CKWYR(&R, &T, Y, WDOT);
   amrex::Real C[NUM_SPECIES];
   CKYTCR(&R, &T, Y, C);
+#ifdef PELEC_USE_PLASMA
+  CKWC(&T, C, WDOT, EoN);
+#else
   CKWC(&T, C, WDOT);
+#endif
 
   amrex::Real mw[NUM_SPECIES];
   get_mw(mw);
@@ -325,7 +333,7 @@ RG2dpde(amrex::Real R, amrex::Real G, amrex::Real& dpde)
   dpde = (G - 1.0) * R;
 }
 
-#ifdef PLM_USE_EFIELD
+#ifdef PELEC_USE_PLASMA
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 void
