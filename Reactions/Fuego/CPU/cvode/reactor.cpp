@@ -23,8 +23,9 @@ using namespace amrex;
 /* OPTIONS */
   Real time_init    = 0.0;
   Array<double,NUM_SPECIES+1> typVals = {-1};
-  double relTol       = 1.0e-10;
-  double absTol       = 1.0e-10;
+  double relTol       = 1.0e-12;
+  double absTol       = 1.0e-30;
+  double NA = 6.02214085774e23;   // 1/mol
 /* REMOVE MAYBE LATER */
   int dense_solve           = 1;
   int sparse_solve          = 5;
@@ -362,12 +363,13 @@ int reactor_init(int reactor_type, int ode_ncells) {
     }
 
     /* Set the max number of time steps */ 
-    flag = CVodeSetMaxNumSteps(cvode_mem, 10000);
+    flag = CVodeSetMaxNumSteps(cvode_mem, 50000);
     if(check_flag(&flag, "CVodeSetMaxNumSteps", 1)) return(1);
 
     /* Set the max order */ 
-    flag = CVodeSetMaxOrd(cvode_mem, 2);
-    if(check_flag(&flag, "CVodeSetMaxOrd", 1)) return(1);
+    // ndeak removed
+    // flag = CVodeSetMaxOrd(cvode_mem, 2);
+    // if(check_flag(&flag, "CVodeSetMaxOrd", 1)) return(1);
 
     /* Set the num of steps to wait inbetween Jac evals */ 
     flag = CVodeSetMaxStepsBetweenJac(cvode_mem, 100);
@@ -399,7 +401,11 @@ int react(const Box& box,
           Array4<Real> const& FC_in,
           Array4<int> const& mask,
           Real &dt_react,
-          Real &time) {
+          Real &time
+#ifdef PELEC_USE_PLASMA
+          , Array4<Real> const& eon  
+#endif
+          ) {
 
     int omp_thread = 0;
 #ifdef _OPENMP
@@ -447,6 +453,9 @@ int react(const Box& box,
             data->rYsrc[n]   = rY_src_in(i,j,k,n);
             rho += yvec_d[n]; 
         }
+#ifdef PELEC_USE_PLASMA
+        data->EoN = eon(i, j, k, 0);
+#endif
         rho_inv                 = 1.0 / rho;
         temp                    = T_in(i,j,k,0);
         data->rhoX_init[0]      = rEner_in(i,j,k,0); 
@@ -544,6 +553,8 @@ int react_2(const Box& box,
           Array4<int> const& mask_in,
           Real &dt_react,
           Real &time) {
+
+    // TODO : fix units for external sources with plasma integration
 
     realtype dummy_time;
     int flag;
@@ -689,7 +700,11 @@ int react_2(const Box& box,
 /* Main routine for CVode integration: classic version */
 int react(realtype *rY_in, realtype *rY_src_in, 
           realtype *rX_in, realtype *rX_src_in,
-          realtype &dt_react, realtype &time){
+          realtype &dt_react, realtype &time
+#ifdef PELEC_USE_PLASMA
+          , realtype eon_in
+#endif        
+){
 
     realtype dummy_time;
     int flag;
@@ -728,6 +743,9 @@ int react(realtype *rY_in, realtype *rY_src_in,
     std::memcpy(data->rhoX_init,   rX_in,     sizeof(Real) * data->ncells);
     std::memcpy(data->rhoXsrc_ext, rX_src_in, sizeof(Real) * data->ncells);
     BL_PROFILE_VAR_STOP(FlatStuff);
+#ifdef PELEC_USE_PLASMA
+    data->EoN = eon_in;
+#endif
 
     /* Check if y is within physical bounds
        we may remove that eventually */
@@ -768,6 +786,16 @@ int react(realtype *rY_in, realtype *rY_src_in,
         }
         // store T in y
         yvec_d[offset + NUM_SPECIES] = temp;
+
+#ifdef PELEC_USE_PLASMA
+        amrex::Real mw[NUM_SPECIES];
+        CKWT(mw);
+
+        // If using plasma chemistry, convert to number densities
+        for(int kk = 0; kk < NUM_SPECIES; kk++){
+          yvec_d[offset + kk] *= (1.0 / mw[kk]) * NA;
+        }
+#endif
     }
     BL_PROFILE_VAR_STOP(FlatStuff);
 
@@ -798,6 +826,20 @@ int react(realtype *rY_in, realtype *rY_src_in,
 
     BL_PROFILE_VAR_START(FlatStuff);
     /* Pack data to return in main routine external */
+#ifdef PELEC_USE_PLASMA
+        amrex::Real mw[NUM_SPECIES];
+        CKWT(mw);
+
+        // If using plasma chemistry, floor small values and convert number densities back to mass densities
+        for(int kk = 0; kk < NUM_SPECIES; kk++){
+          if(amrex::Math::abs(yvec_d[offset + kk]) < 1.0e-20) yvec_d[offset + kk] = 0.0;
+          if(yvec_d[offset + kk] < 0.0) {
+            // printf("ERROR : negative number density encountered for species %i (%.6e)\n", kk, yvec_d[offset + kk]);
+            // exit(1);
+          }
+          yvec_d[offset + kk] *= mw[kk] / NA;
+        }
+#endif
     std::memcpy(rY_in, yvec_d, ((NUM_SPECIES+1)*data->ncells)*sizeof(realtype));
     for  (int i = 0; i < data->ncells; i++) {
         rX_in[i] = rX_in[i] + dt_react * rX_src_in[i];
@@ -894,7 +936,11 @@ void fKernelSpec(realtype *t, realtype *yvec_d, realtype *ydot_d,
       /* rho MKS */ 
       realtype rho = 0.0;
       for (int i = 0; i < NUM_SPECIES; i++){
+#ifdef PELEC_USE_PLASMA
+          rho = rho + yvec_d[offset + i] * molecular_weight[i] / NA;
+#else
           rho = rho + yvec_d[offset + i];
+#endif
       }
 
       /* temp */
@@ -902,9 +948,15 @@ void fKernelSpec(realtype *t, realtype *yvec_d, realtype *ydot_d,
 
       /* Yks */
       for (int i = 0; i < NUM_SPECIES; i++){
+#ifdef PELEC_USE_PLASMA
+          massfrac[i] = yvec_d[offset + i] * molecular_weight[i] / (rho * NA);
+          // printf("num density species %i = %.6e\n", i, yvec_d[offset + i]);
+          // printf("massfrac species %i = %.6e\n", i, massfrac[i]);
+#else
           massfrac[i] = yvec_d[offset + i] / rho;
+#endif
       }
-
+  
       /* NRG CGS */
       energy = (data_wk->rhoX_init[data->boxcell + tid] + data_wk->rhoXsrc_ext[data_wk->boxcell + tid] * dt) /rho;
 
@@ -919,13 +971,22 @@ void fKernelSpec(realtype *t, realtype *yvec_d, realtype *ydot_d,
           EOS::TY2Cp(temp, massfrac, cX);
           EOS::T2Hi(temp, Xi);
       }
+#ifdef PELEC_USE_PLASMA
+      EOS::RTY2WDOT(rho, temp, massfrac, cdot, data_wk->EoN);
+#else
       EOS::RTY2WDOT(rho, temp, massfrac, cdot);
+#endif
 
       /* Fill ydot vect */
       ydot_d[offset + NUM_SPECIES] = data_wk->rhoXsrc_ext[data_wk->boxcell + tid];
       for (int i = 0; i < NUM_SPECIES; i++){
+#ifdef PELEC_USE_PLASMA
+          ydot_d[offset + i] = (cdot[i] + data_wk->rYsrc[(data_wk->boxcell + tid) * (NUM_SPECIES) + i]) * NA * (1.0/molecular_weight[i]);
+          ydot_d[offset + NUM_SPECIES] = ydot_d[offset + NUM_SPECIES]  - ydot_d[offset + i] * molecular_weight[i] * Xi[i] / NA;
+#else
           ydot_d[offset + i] = cdot[i] + data_wk->rYsrc[(data_wk->boxcell + tid) * (NUM_SPECIES) + i];
           ydot_d[offset + NUM_SPECIES] = ydot_d[offset + NUM_SPECIES]  - ydot_d[offset + i] * Xi[i];
+#endif
       }
       ydot_d[offset + NUM_SPECIES] = ydot_d[offset + NUM_SPECIES] /(rho * cX);
   }

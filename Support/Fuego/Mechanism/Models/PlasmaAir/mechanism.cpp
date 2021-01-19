@@ -1955,6 +1955,7 @@ void CKABMS(double *  P, double *  T, double *  y,  double *  abms)
 /*compute the production rate for each species */
 AMREX_GPU_HOST_DEVICE void CKWC(double *  T, double *  C,  double *  wdot, double EoN)
 {
+    // units of mol/cm3-s
     int id; /*loop counter */
 
     /*convert to SI */
@@ -1962,10 +1963,15 @@ AMREX_GPU_HOST_DEVICE void CKWC(double *  T, double *  C,  double *  wdot, doubl
         C[id] *= 1.0e6;
     }
 
+    // TODO: remove after testing
+    // for (id = 0; id < 10; id++){
+    //     C[id] = 4.062176;
+    // }
+
     /*convert to chemkin units */
     productionRate(wdot, C, *T, EoN);
 
-    /*convert to chemkin units */
+    /*convert to chemkin units (cgs) */
     for (id = 0; id < 10; ++id) {
         C[id] *= 1.0e-6;
         wdot[id] *= 1.0e-6;
@@ -3565,7 +3571,7 @@ void productionRate(double *  wdot, double *  sc, double T, double EoN)
 
     /*calculate Te based on E/N */
     ExtrapTe(EoN, &Te);
-
+    
     /*Calculate the electric field-dependent rate constants */
     plasmaFRates(tc, invT, k_f_save, EoN, Te);
 
@@ -3732,16 +3738,23 @@ void productionRate(double *  wdot, double *  sc, double T, double EoN)
     wdot[2] += qdot;
     wdot[9] -= qdot;
 
-    // TODO: hardcoded for now, add to input file late
-    // Creation of seed electron/ions
-    wdot[0] += 1.0e7;
-    wdot[1] -= 1.0e7 * sc[1] / (sc[1] + sc[2]);
-    wdot[2] -= 1.0e7 * sc[2] / (sc[1] + sc[2]);
-    wdot[4] += 1.0e7 * sc[1] / (sc[1] + sc[2]);
-    wdot[5] += 1.0e7 * sc[2] / (sc[1] + sc[2]);
+    // TODO remove after tests
+    // for(int n = 0; n < 10; n++) wdot[n] = 0.0;
 
-    wdot[1] = 0.0;
-    wdot[2] = 0.0;
+    // TODO: hardcoded for now, add to input file late
+    // Creation of seed electron/ions (mol/m3-s)
+    wdot[0] += (1.0e7/6.02214085774e23);
+    wdot[1] -= (1.0e7/6.02214085774e23) * sc[1] / (sc[1] + sc[2]);
+    wdot[2] -= (1.0e7/6.02214085774e23) * sc[2] / (sc[1] + sc[2]);
+    wdot[4] += (1.0e7/6.02214085774e23) * sc[1] / (sc[1] + sc[2]);
+    wdot[5] += (1.0e7/6.02214085774e23) * sc[2] / (sc[1] + sc[2]);
+
+    // wdot[1] = 0.0;
+    // wdot[2] = 0.0;
+
+    // for(int n = 0; n<22; n++) printf("Rate %i = %.6e\n", n, k_f_save[n]);
+    // for(int n = 0; n<10; n++) printf("Species %i production rate = %.6e (mol/m3-s)\n", wdot[n]);
+    // exit(1);
 
     return;
 }

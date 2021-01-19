@@ -77,6 +77,9 @@ typedef struct {
       SUNMatrix PSc;
       int *colVals_c;
       int *rowPtrs_c;
+#ifdef PELEC_USE_PLASMA
+      amrex::Real EoN;
+#endif
 } *UserData;
 
 
@@ -127,7 +130,11 @@ int react(const amrex::Box& box,
           amrex::Array4<amrex::Real> const& FC_in,
           amrex::Array4<int> const& mask, 
           amrex::Real &dt_react,
-          amrex::Real &time);
+          amrex::Real &time
+#ifdef PELEC_USE_PLASMA
+          , amrex::Array4<amrex::Real> const& eon
+#endif      
+);
 
 int react_2(const amrex::Box& box,
           amrex::Array4<amrex::Real> const& rY_in,
@@ -142,7 +149,11 @@ int react_2(const amrex::Box& box,
 
 int react(amrex::Real *rY_in, amrex::Real *rY_src_in, 
 	      amrex::Real *rX_in, amrex::Real *rX_src_in, 
-	      amrex::Real &dt_react, amrex::Real &time);
+	      amrex::Real &dt_react, amrex::Real &time
+#ifdef PELEC_USE_PLASMA
+        , amrex::Real eon_in
+#endif
+);
 
 void reactor_close();
 
