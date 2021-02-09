@@ -176,7 +176,8 @@ RTY2WDOT(amrex::Real R, amrex::Real T, amrex::Real Y[], amrex::Real WDOT[]
 #ifdef PELEC_USE_PLASMA
   CKWC(&T, C, WDOT, EoN);
 #else
-  CKWC(&T, C, WDOT);
+  double EoN = 0.0;
+  CKWC(&T, C, WDOT, EoN);
 #endif
 
   amrex::Real mw[NUM_SPECIES];

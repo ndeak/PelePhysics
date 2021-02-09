@@ -23,8 +23,8 @@ using namespace amrex;
 /* OPTIONS */
   Real time_init    = 0.0;
   Array<double,NUM_SPECIES+1> typVals = {-1};
-  double relTol       = 1.0e-12;
-  double absTol       = 1.0e-30;
+  double relTol       = 1.0e-8;
+  double absTol       = 1.0e-15;
   double NA = 6.02214085774e23;   // 1/mol
 /* REMOVE MAYBE LATER */
   int dense_solve           = 1;
@@ -950,8 +950,6 @@ void fKernelSpec(realtype *t, realtype *yvec_d, realtype *ydot_d,
       for (int i = 0; i < NUM_SPECIES; i++){
 #ifdef PELEC_USE_PLASMA
           massfrac[i] = yvec_d[offset + i] * molecular_weight[i] / (rho * NA);
-          // printf("num density species %i = %.6e\n", i, yvec_d[offset + i]);
-          // printf("massfrac species %i = %.6e\n", i, massfrac[i]);
 #else
           massfrac[i] = yvec_d[offset + i] / rho;
 #endif

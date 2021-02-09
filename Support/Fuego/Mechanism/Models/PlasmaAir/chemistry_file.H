@@ -93,11 +93,7 @@ void CKGBML(double *  P, double *  T, double *  x, double *  gbml);
 void CKGBMS(double *  P, double *  T, double *  y, double *  gbms);
 void CKABML(double *  P, double *  T, double *  x, double *  abml);
 void CKABMS(double *  P, double *  T, double *  y, double *  abms);
-#ifdef PELEC_USE_PLASMA
 AMREX_GPU_HOST_DEVICE void CKWC(double *  T, double *  C, double *  wdot, double EoN);
-#else
-AMREX_GPU_HOST_DEVICE void CKWC(double *  T, double *  C, double *  wdot);
-#endif
 void CKWYP(double *  P, double *  T, double *  y, double *  wdot);
 void CKWXP(double *  P, double *  T, double *  x, double *  wdot);
 AMREX_GPU_HOST_DEVICE void CKWYR(double *  rho, double *  T, double *  y, double *  wdot);
