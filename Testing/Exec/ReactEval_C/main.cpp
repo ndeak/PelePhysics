@@ -7,6 +7,7 @@
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_VisMF.H>
 #include <AMReX_ParmParse.H>
+#include <AMReX_SUNMemory.H>
 #include "mechanism.h"
 
 #include <PlotFileFromMF.H>
@@ -84,6 +85,7 @@ main (int   argc,
       char* argv[])
 {
   Initialize(argc,argv);
+  amrex::sundials::MemoryHelper::Initialize(); /* TODO: this ideally (I think) will go in the amrex::Initialize */
   {
     BL_PROFILE_VAR("main::main()", pmain);
 
@@ -139,6 +141,10 @@ main (int   argc,
 #ifdef NC12H26_ID
     } else if (fuel_name == "NC12H26") {
       fuel_idx  = NC12H26_ID;
+#endif
+#ifdef IC8H18_ID
+    } else if (fuel_name == "IC8H18") {
+      fuel_idx  = IC8H18_ID;
 #endif
     }
 
@@ -260,9 +266,12 @@ main (int   argc,
     BL_PROFILE_VAR_NS("Allocs",Allocs);
     BL_PROFILE_VAR_NS("Flatten",mainflatten);
 #ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
+    const auto tiling = MFItInfo().SetDynamic(true);
+#pragma omp parallel
+#else
+    const bool tiling = TilingIfNotGPU();
 #endif
-    for ( MFIter mfi(mf,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for ( MFIter mfi(mf,tiling); mfi.isValid(); ++mfi) {
 
       const Box& box  = mfi.tilebox();
       int nc          = box.numPts();
@@ -285,6 +294,8 @@ main (int   argc,
 #else
 #ifndef CVODE_BOXINTEG
       extra_cells = nc - (nc / ode_ncells) * ode_ncells; 
+#else
+      ode_ncells    = nc;
 #endif
 #endif
 
